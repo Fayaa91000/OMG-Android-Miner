@@ -35,11 +35,13 @@ public class MainActivity extends Activity {
         Button start = new Button(this);
         start.setText("START MINING");
         start.setEnabled(false);
+        start.setTextColor(Color.WHITE);
         layout.addView(start);
 
         Button stop = new Button(this);
         stop.setText("STOP MINING");
         stop.setEnabled(false);
+        stop.setTextColor(Color.WHITE);
         layout.addView(stop);
 
         setContentView(layout);

@@ -1,3 +1,6 @@
 [submodule "native/xmrig"]
 	path = native/xmrig
 	url = https://github.com/xmrig/xmrig.git
+[submodule "native/libuv"]
+	path = native/libuv
+	url = https://github.com/libuv/libuv.git

@@ -4,3 +4,6 @@
 [submodule "native/libuv"]
 	path = native/libuv
 	url = https://github.com/libuv/libuv.git
+[submodule "native/openssl"]
+	path = native/openssl
+	url = https://github.com/openssl/openssl.git

@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
 
-    private static final long MAX_SESSION_MS = 600000L;
+    private static final long MAX_SESSION_MS = 7200000L;
 
     private static final Pattern SPEED =
         Pattern.compile("speed\\s+10s/60s/15m\\s+(\\S+)");
@@ -35,6 +35,9 @@ public class MainActivity extends Activity {
     private volatile boolean closing = false;
 
     private TextView status;
+    private TextView countdown;
+    private android.widget.Spinner threadSelector;
+    private int selectedThreads = 3;
     private EditText wallet;
     private Button start;
     private Button stop;
@@ -51,6 +54,16 @@ public class MainActivity extends Activity {
         layout.setPadding(40, 60, 40, 40);
         layout.setGravity(Gravity.CENTER_HORIZONTAL);
         layout.setBackgroundColor(Color.rgb(14, 22, 35));
+
+        android.widget.ImageView logo =
+            new android.widget.ImageView(this);
+        logo.setImageResource(R.drawable.omg_logo);
+        int logoSize = (int) (90 *
+            getResources().getDisplayMetrics().density);
+        LinearLayout.LayoutParams logoParams =
+            new LinearLayout.LayoutParams(logoSize, logoSize);
+        logoParams.gravity = Gravity.CENTER_HORIZONTAL;
+        layout.addView(logo, logoParams);
 
         TextView title = new TextView(this);
         title.setText("OMG MINER");
@@ -75,6 +88,31 @@ public class MainActivity extends Activity {
         wallet.setHint("Your own Monero wallet address");
         layout.addView(wallet);
 
+        TextView threadLabel = new TextView(this);
+        threadLabel.setText("CPU threads (1–6, default 3)");
+        threadLabel.setTextColor(Color.WHITE);
+        threadLabel.setTextSize(16);
+        layout.addView(threadLabel);
+
+        int cpuLimit = Math.min(6, Math.max(1,
+            Runtime.getRuntime().availableProcessors()));
+
+        String[] threadOptions = new String[cpuLimit];
+        for (int i = 0; i < cpuLimit; i++) {
+            threadOptions[i] = (i + 1) + " threads";
+        }
+
+        threadSelector = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> adapter =
+            new android.widget.ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_dropdown_item,
+                threadOptions
+            );
+        threadSelector.setAdapter(adapter);
+        threadSelector.setSelection(Math.min(2, cpuLimit - 1));
+        layout.addView(threadSelector);
+
         status = new TextView(this);
         status.setText(
             "\nNot mining\nHashrate: —\nAccepted shares: 0\n"
@@ -83,6 +121,14 @@ public class MainActivity extends Activity {
         status.setTextColor(Color.LTGRAY);
         status.setGravity(Gravity.CENTER);
         layout.addView(status);
+
+        countdown = new TextView(this);
+        countdown.setText("Session duration: 02:00:00");
+        countdown.setTextColor(Color.WHITE);
+        countdown.setTextSize(20);
+        countdown.setGravity(Gravity.CENTER);
+        countdown.setPadding(0, 16, 0, 16);
+        layout.addView(countdown);
 
         start = new Button(this);
         start.setText("START MINING");
@@ -131,7 +177,18 @@ public class MainActivity extends Activity {
             startActivity(intent);
         });
 
-        setContentView(layout);
+        TextView developer = new TextView(this);
+        developer.setText("Developed by Hassanaat Gems");
+        developer.setTextColor(Color.LTGRAY);
+        developer.setTextSize(15);
+        developer.setGravity(Gravity.CENTER);
+        developer.setPadding(0, 24, 0, 12);
+        layout.addView(developer);
+
+        android.widget.ScrollView scroll =
+            new android.widget.ScrollView(this);
+        scroll.addView(layout);
+        setContentView(scroll);
     }
 
     private void beginMining() {
@@ -150,12 +207,21 @@ public class MainActivity extends Activity {
             return;
         }
 
+        String safety = safetyIssue();
+        if (safety != null) {
+            requested.set(false);
+            status.setText(safety);
+            return;
+        }
+
+        selectedThreads = threadSelector.getSelectedItemPosition() + 1;
         acceptedShares = 0;
         speedValue = "Waiting for real hashrate";
 
         start.setEnabled(false);
         stop.setEnabled(true);
         wallet.setEnabled(false);
+        threadSelector.setEnabled(false);
 
         status.setText(
             "Starting XMRig...\n" +
@@ -201,7 +267,7 @@ public class MainActivity extends Activity {
                 args.add("-p");
                 args.add("OMG-Android");
 
-                args.add("--threads=5");
+                args.add("--threads=" + selectedThreads);
                 args.add("--randomx-mode=light");
                 args.add("--print-time=10");
                 args.add("--no-color");
@@ -219,19 +285,49 @@ public class MainActivity extends Activity {
                 if (!requested.get()) {
                     running.destroy();
                 } else {
+                    final long startedAt =
+                        android.os.SystemClock.elapsedRealtime();
 
-                    ui.postDelayed(() -> {
+                    ui.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (closing || !requested.get()
+                                || miningProcess != running) {
+                                return;
+                            }
 
-                        if (
-                            miningProcess == running &&
-                            requested.get()
-                        ) {
-                            stopMining(
-                                "10-minute safety limit reached"
+                            String safety = safetyIssue();
+                            if (safety != null) {
+                                stopMining(safety);
+                                return;
+                            }
+
+                            long elapsed =
+                                android.os.SystemClock.elapsedRealtime()
+                                - startedAt;
+
+                            long remaining = Math.max(
+                                0L, MAX_SESSION_MS - elapsed
                             );
-                        }
 
-                    }, MAX_SESSION_MS);
+                            long seconds = (remaining + 999) / 1000;
+
+                            countdown.setText(String.format(
+                                java.util.Locale.US,
+                                "Time remaining: %02d:%02d:%02d",
+                                seconds / 3600,
+                                (seconds / 60) % 60,
+                                seconds % 60
+                            ));
+
+                            if (remaining == 0L) {
+                                stopMining("2-hour session completed");
+                                return;
+                            }
+
+                            ui.postDelayed(this, 1000);
+                        }
+                    });
                 }
 
                 try (
@@ -346,7 +442,7 @@ public class MainActivity extends Activity {
                     : line;
 
             status.setText(
-                "Mining (5 threads)\n" +
+                "Mining (" + selectedThreads + " threads)\n" +
                 "Hashrate: " + speedValue + "\n" +
                 "Accepted shares: " + acceptedShares +
                 "\n" + shortLine
@@ -354,9 +450,51 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String safetyIssue() {
+        android.content.Intent battery = registerReceiver(
+            null,
+            new android.content.IntentFilter(
+                android.content.Intent.ACTION_BATTERY_CHANGED
+            )
+        );
+
+        if (battery != null) {
+            int level = battery.getIntExtra(
+                android.os.BatteryManager.EXTRA_LEVEL, -1);
+            int scale = battery.getIntExtra(
+                android.os.BatteryManager.EXTRA_SCALE, -1);
+            int temp = battery.getIntExtra(
+                android.os.BatteryManager.EXTRA_TEMPERATURE, -1);
+
+            if (level >= 0 && scale > 0 &&
+                level * 100 / scale < 20) {
+                return "Safety stop: battery below 20%";
+            }
+
+            if (temp >= 430) {
+                return "Safety stop: high battery temperature";
+            }
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.os.PowerManager power =
+                (android.os.PowerManager)
+                getSystemService(POWER_SERVICE);
+
+            if (power != null &&
+                power.getCurrentThermalStatus() >=
+                android.os.PowerManager.THERMAL_STATUS_SEVERE) {
+                return "Safety stop: device overheating";
+            }
+        }
+
+        return null;
+    }
+
     private void stopMining(String reason) {
 
         requested.set(false);
+        countdown.setText("Session stopped");
 
         Process process = miningProcess;
 
@@ -397,6 +535,7 @@ public class MainActivity extends Activity {
         start.setEnabled(true);
         stop.setEnabled(false);
         wallet.setEnabled(true);
+        threadSelector.setEnabled(true);
     }
 
     @Override

@@ -36,6 +36,9 @@ cmake -S "$ROOT/native/xmrig" -B "$RUNNER_TEMP/omg-xmrig-build" \
   -DUV_LIBRARY="$DEPS/lib/libuv.a" \
   -DUV_INCLUDE_DIR="$DEPS/include" \
   -DOPENSSL_ROOT_DIR="$DEPS" \
+  -DOPENSSL_INCLUDE_DIR="$DEPS/include" \
+  -DOPENSSL_SSL_LIBRARY="$DEPS/lib/libssl.a" \
+  -DOPENSSL_CRYPTO_LIBRARY="$DEPS/lib/libcrypto.a" \
   -DOPENSSL_USE_STATIC_LIBS=ON \
   -DWITH_HWLOC=OFF \
   -DWITH_OPENCL=OFF \

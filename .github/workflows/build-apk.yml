@@ -11,6 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -27,6 +28,34 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+
+      - name: Build OpenSSL for Android ARM64
+        shell: bash
+        run: |
+          set -e
+
+          export ANDROID_NDK_ROOT="${ANDROID_HOME}/ndk/27.2.12479018"
+          export PATH="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
+
+          cd native/openssl
+
+          ./Configure android-arm64 \
+            -D__ANDROID_API__=26 \
+            no-shared no-tests no-apps \
+            --prefix="${RUNNER_TEMP}/omg-openssl-arm64" \
+            --libdir=lib
+
+          make -j2 build_libs
+          make install_dev
+
+          test -f "${RUNNER_TEMP}/omg-openssl-arm64/lib/libssl.a"
+          test -f "${RUNNER_TEMP}/omg-openssl-arm64/lib/libcrypto.a"
+
+          echo "OMG OpenSSL ARM64 build successful"
 
       - name: Build Android APK
         run: gradle :app:assembleDebug --no-daemon

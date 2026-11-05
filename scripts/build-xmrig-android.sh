@@ -46,6 +46,7 @@ cmake -S "$RUNNER_TEMP/omg-xmrig-src" -B "$RUNNER_TEMP/omg-xmrig-build" \
   -DOPENSSL_SSL_LIBRARY="$DEPS/lib/libssl.a" \
   -DOPENSSL_CRYPTO_LIBRARY="$DEPS/lib/libcrypto.a" \
   -DOPENSSL_USE_STATIC_LIBS=ON \
+  -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=TRUE \
   -DWITH_HWLOC=OFF \
   -DWITH_OPENCL=OFF \
   -DWITH_CUDA=OFF \

@@ -2,8 +2,19 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project(omgminer LANGUAGES C CXX)
 
+# Build XMRig's libuv dependency for Android ARM64.
+set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(ENABLE_CLANG_TIDY OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../native/libuv"
+    "${CMAKE_CURRENT_BINARY_DIR}/libuv"
+)
+
+# Preserve our existing Android JNI bridge.
 add_library(omgminer SHARED native_bridge.cpp)
 
 find_library(android_log log)
 
-target_link_libraries(omgminer PRIVATE ${android_log})
+target_link_libraries(omgminer PRIVATE uv_a ${android_log})

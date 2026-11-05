@@ -29,9 +29,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android NDK
-        run: |
-          sdkmanager "ndk;27.2.12479018"
+        run: sdkmanager --install "ndk;27.2.12479018"
 
       - name: Build OpenSSL for Android ARM64
         shell: bash

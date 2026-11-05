@@ -87,6 +87,10 @@ jobs:
 
           echo "OMG OpenSSL ARM64 build successful"
 
+      - name: Compile real XMRig Android ARM64 engine
+        shell: bash
+        run: bash scripts/build-xmrig-android.sh
+
       - name: Build Android APK
         run: gradle :app:assembleDebug --no-daemon
 

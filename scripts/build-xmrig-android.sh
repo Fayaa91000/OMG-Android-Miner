@@ -57,4 +57,14 @@ cmake -S "$RUNNER_TEMP/omg-xmrig-src" -B "$RUNNER_TEMP/omg-xmrig-build" \
   -DWITH_TLS=ON
 
 cmake --build "$RUNNER_TEMP/omg-xmrig-build" -j2
-echo "OMG Android ARM64 XMRig compilation completed"
+# Stage the compiled ARM64 executable for APK packaging.
+MINER="$RUNNER_TEMP/omg-xmrig-build/xmrig"
+DEST="$ROOT/app/src/main/jniLibs/arm64-v8a/libxmrig.so"
+
+test -f "$MINER" || {
+    echo "ERROR: XMRig executable not found"
+    exit 1
+}
+
+cp "$MINER" "$DEST"
+echo "OMG XMRig executable staged for APK packaging"

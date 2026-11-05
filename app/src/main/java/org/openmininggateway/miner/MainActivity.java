@@ -101,6 +101,36 @@ public class MainActivity extends Activity {
             v -> stopMining("Stopped by user")
         );
 
+        Button github = new Button(this);
+        github.setText("OMG GitHub");
+        layout.addView(github);
+
+        github.setOnClickListener(v -> {
+            android.content.Intent intent =
+                new android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "https://github.com/Fayaa91000/OMG-Android-Miner"
+                    )
+                );
+            startActivity(intent);
+        });
+
+        Button earnings = new Button(this);
+        earnings.setText("CHECK MINING EARNINGS");
+        layout.addView(earnings);
+
+        earnings.setOnClickListener(v -> {
+            android.content.Intent intent =
+                new android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "https://hashvault.pro/monero/"
+                    )
+                );
+            startActivity(intent);
+        });
+
         setContentView(layout);
     }
 

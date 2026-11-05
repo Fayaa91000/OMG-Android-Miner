@@ -28,7 +28,13 @@ cp "$ROOT/native/libuv/include/uv.h" "$DEPS/include/"
 cp -R "$ROOT/native/libuv/include/." "$DEPS/include/"
 
 # Compile the actual XMRig engine for Android ARM64.
-cmake -S "$ROOT/native/xmrig" -B "$RUNNER_TEMP/omg-xmrig-build" \
+# Build from a temporary copy; preserve upstream XMRig.
+cp -a "$ROOT/native/xmrig" "$RUNNER_TEMP/omg-xmrig-src"
+
+# Android uses bionic; separate pthread and rt libraries are unavailable.
+sed -i 's/set(EXTRA_LIBS pthread rt dl log)/set(EXTRA_LIBS dl log)/'   "$RUNNER_TEMP/omg-xmrig-src/CMakeLists.txt"
+
+cmake -S "$RUNNER_TEMP/omg-xmrig-src" -B "$RUNNER_TEMP/omg-xmrig-build" \
   -DCMAKE_TOOLCHAIN_FILE="$NDK_TOOLCHAIN" \
   -DANDROID_ABI=arm64-v8a \
   -DANDROID_PLATFORM=android-26 \

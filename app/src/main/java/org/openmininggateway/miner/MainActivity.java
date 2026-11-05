@@ -88,6 +88,40 @@ public class MainActivity extends Activity {
         wallet.setHint("Your own Monero wallet address");
         layout.addView(wallet);
 
+        Button pasteWallet = new Button(this);
+        pasteWallet.setText("PASTE WALLET ADDRESS");
+        layout.addView(pasteWallet);
+
+        pasteWallet.setOnClickListener(v -> {
+            android.content.ClipboardManager clipboard =
+                (android.content.ClipboardManager)
+                getSystemService(CLIPBOARD_SERVICE);
+
+            if (clipboard == null ||
+                !clipboard.hasPrimaryClip()) {
+                android.widget.Toast.makeText(
+                    this, "Clipboard is empty",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
+
+            android.content.ClipData clip =
+                clipboard.getPrimaryClip();
+
+            if (clip == null || clip.getItemCount() == 0) {
+                return;
+            }
+
+            CharSequence copied =
+                clip.getItemAt(0).coerceToText(this);
+
+            if (copied != null) {
+                wallet.setText(copied.toString().trim());
+                wallet.setSelection(wallet.length());
+            }
+        });
+
         TextView threadLabel = new TextView(this);
         threadLabel.setText("CPU threads (1–6, default 3)");
         threadLabel.setTextColor(Color.WHITE);

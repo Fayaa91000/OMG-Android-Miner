@@ -33,6 +33,8 @@ cmake -S "$ROOT/native/xmrig" -B "$RUNNER_TEMP/omg-xmrig-build" \
   -DANDROID_ABI=arm64-v8a \
   -DANDROID_PLATFORM=android-26 \
   -DXMRIG_DEPS="$DEPS" \
+  -DUV_LIBRARY="$DEPS/lib/libuv.a" \
+  -DUV_INCLUDE_DIR="$DEPS/include" \
   -DOPENSSL_ROOT_DIR="$DEPS" \
   -DOPENSSL_USE_STATIC_LIBS=ON \
   -DWITH_HWLOC=OFF \

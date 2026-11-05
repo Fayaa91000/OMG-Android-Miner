@@ -225,362 +225,148 @@ public class MainActivity extends Activity {
         setContentView(scroll);
     }
 
+
     private void beginMining() {
-
-        if (!requested.compareAndSet(false, true)) {
-            return;
-        }
-
         String address = wallet.getText().toString().trim();
 
         if (address.length() < 90 || address.contains(" ")) {
-            requested.set(false);
             status.setText(
                 "Enter your own valid Monero wallet address first."
             );
             return;
         }
 
-        String safety = safetyIssue();
-        if (safety != null) {
-            requested.set(false);
-            status.setText(safety);
+        int threads =
+            threadSelector.getSelectedItemPosition() + 1;
+
+        if (threads < 1 || threads > 6) {
+            status.setText("Invalid CPU thread selection.");
             return;
         }
 
-        selectedThreads = threadSelector.getSelectedItemPosition() + 1;
-        acceptedShares = 0;
-        speedValue = "Waiting for real hashrate";
+        android.content.Intent intent =
+            new android.content.Intent(this, MiningService.class);
+        intent.setAction(MiningService.START);
+        intent.putExtra("wallet", address);
+        intent.putExtra("threads", threads);
 
-        start.setEnabled(false);
-        stop.setEnabled(true);
-        wallet.setEnabled(false);
-        threadSelector.setEnabled(false);
+        try {
+            getSharedPreferences("omg_state", MODE_PRIVATE)
+                .edit()
+                .putBoolean("mining", true)
+                .putString("status", "Starting XMRig")
+                .putString("hashrate", "Waiting")
+                .putInt("shares", 0)
+                .putInt("threads", threads)
+                .putLong("remaining", 7200000L)
+                .apply();
 
-        status.setText(
-            "Starting XMRig...\n" +
-            "Hashrate: —\n" +
-            "Accepted shares: 0"
-        );
+            startForegroundService(intent);
 
-        new Thread(() -> {
+            getSharedPreferences("omg_user", MODE_PRIVATE)
+                .edit()
+                .putString("wallet", address)
+                .apply();
 
-            Process process = null;
-
-            try {
-
-                File miner = new File(
-                    getApplicationInfo().nativeLibraryDir,
-                    "libxmrig.so"
-                );
-
-                if (!miner.isFile() || !miner.canExecute()) {
-                    throw new IllegalStateException(
-                        "Packaged XMRig executable unavailable: " +
-                        miner.getAbsolutePath()
-                    );
-                }
-
-                List<String> args = new ArrayList<>();
-
-                args.add(miner.getAbsolutePath());
-                args.add("-o");
-                args.add("pool.hashvault.pro:443");
-
-                args.add("--tls");
-
-                args.add("--coin");
-                args.add("monero");
-
-                args.add("--algo");
-                args.add("rx/0");
-
-                args.add("-u");
-                args.add(address);
-
-                args.add("-p");
-                args.add("OMG-Android");
-
-                args.add("--threads=" + selectedThreads);
-                args.add("--randomx-mode=light");
-                args.add("--print-time=10");
-                args.add("--no-color");
-                args.add("--no-huge-pages");
-
-                ProcessBuilder pb = new ProcessBuilder(args);
-                pb.redirectErrorStream(true);
-                pb.directory(getFilesDir());
-
-                process = pb.start();
-                miningProcess = process;
-
-                final Process running = process;
-
-                if (!requested.get()) {
-                    running.destroy();
-                } else {
-                    final long startedAt =
-                        android.os.SystemClock.elapsedRealtime();
-
-                    ui.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (closing || !requested.get()
-                                || miningProcess != running) {
-                                return;
-                            }
-
-                            String safety = safetyIssue();
-                            if (safety != null) {
-                                stopMining(safety);
-                                return;
-                            }
-
-                            long elapsed =
-                                android.os.SystemClock.elapsedRealtime()
-                                - startedAt;
-
-                            long remaining = Math.max(
-                                0L, MAX_SESSION_MS - elapsed
-                            );
-
-                            long seconds = (remaining + 999) / 1000;
-
-                            countdown.setText(String.format(
-                                java.util.Locale.US,
-                                "Time remaining: %02d:%02d:%02d",
-                                seconds / 3600,
-                                (seconds / 60) % 60,
-                                seconds % 60
-                            ));
-
-                            if (remaining == 0L) {
-                                stopMining("2-hour session completed");
-                                return;
-                            }
-
-                            ui.postDelayed(this, 1000);
-                        }
-                    });
-                }
-
-                try (
-                    BufferedReader lines = new BufferedReader(
-                        new InputStreamReader(
-                            process.getInputStream()
-                        )
-                    )
-                ) {
-
-                    String line;
-
-                    while ((line = lines.readLine()) != null) {
-
-                        if (!requested.get()) {
-                            continue;
-                        }
-
-                        final String output = line;
-
-                        ui.post(
-                            () -> showMiningOutput(output)
-                        );
-                    }
-                }
-
-                int result = process.waitFor();
-                final int exitCode = result;
-
-                ui.post(() -> {
-
-                    if (
-                        miningProcess == running &&
-                        requested.get()
-                    ) {
-
-                        status.setText(
-                            "Miner exited (code " +
-                            exitCode + ").\n" +
-                            "Hashrate: " + speedValue + "\n" +
-                            "Accepted shares: " + acceptedShares
-                        );
-                    }
-                });
-
-            } catch (Exception ex) {
-
-                String message =
-                    ex.getMessage() == null
-                        ? ex.getClass().getSimpleName()
-                        : ex.getMessage();
-
-                ui.post(() -> {
-
-                    if (!closing && requested.get()) {
-
-                        status.setText(
-                            "Could not start XMRig:\n" + message
-                        );
-                    }
-                });
-
-            } finally {
-
-                if (
-                    process != null &&
-                    miningProcess == process
-                ) {
-                    miningProcess = null;
-                }
-
-                requested.set(false);
-
-                ui.post(() -> {
-
-                    if (!closing) {
-                        setIdle();
-                    }
-
-                });
-            }
-
-        }, "omg-miner-worker").start();
-    }
-
-    private void showMiningOutput(String line) {
-
-        if (closing || !requested.get()) {
-            return;
-        }
-
-        Matcher m = SPEED.matcher(line);
-
-        if (m.find()) {
-            speedValue = m.group(1) + " H/s (10s)";
-        }
-
-        if (line.contains("accepted (")) {
-            acceptedShares++;
-        }
-
-        if (
-            m.find(0) ||
-            line.contains("accepted (") ||
-            line.contains("new job") ||
-            line.contains("error")
-        ) {
-
-            String shortLine =
-                line.length() > 110
-                    ? line.substring(0, 110)
-                    : line;
-
+            start.setEnabled(false);
+            stop.setEnabled(true);
+            wallet.setEnabled(false);
+            threadSelector.setEnabled(false);
+            status.setText("Starting background mining...");
+        } catch (Exception ex) {
             status.setText(
-                "Mining (" + selectedThreads + " threads)\n" +
-                "Hashrate: " + speedValue + "\n" +
-                "Accepted shares: " + acceptedShares +
-                "\n" + shortLine
+                "Could not start mining: " + ex.getMessage()
             );
         }
     }
 
-    private String safetyIssue() {
-        android.content.Intent battery = registerReceiver(
-            null,
-            new android.content.IntentFilter(
-                android.content.Intent.ACTION_BATTERY_CHANGED
-            )
-        );
-
-        if (battery != null) {
-            int level = battery.getIntExtra(
-                android.os.BatteryManager.EXTRA_LEVEL, -1);
-            int scale = battery.getIntExtra(
-                android.os.BatteryManager.EXTRA_SCALE, -1);
-            int temp = battery.getIntExtra(
-                android.os.BatteryManager.EXTRA_TEMPERATURE, -1);
-
-            if (level >= 0 && scale > 0 &&
-                level * 100 / scale < 20) {
-                return "Safety stop: battery below 20%";
-            }
-
-            if (temp >= 430) {
-                return "Safety stop: high battery temperature";
-            }
-        }
-
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            android.os.PowerManager power =
-                (android.os.PowerManager)
-                getSystemService(POWER_SERVICE);
-
-            if (power != null &&
-                power.getCurrentThermalStatus() >=
-                android.os.PowerManager.THERMAL_STATUS_SEVERE) {
-                return "Safety stop: device overheating";
-            }
-        }
-
-        return null;
+    private void stopMining(String reason) {
+        android.content.Intent intent =
+            new android.content.Intent(this, MiningService.class);
+        intent.setAction(MiningService.STOP);
+        startService(intent);
+        status.setText("Stopping mining...");
+        stop.setEnabled(false);
     }
 
-    private void stopMining(String reason) {
+    private void refreshMiningState() {
+        android.content.SharedPreferences prefs =
+            getSharedPreferences("omg_state", MODE_PRIVATE);
 
-        requested.set(false);
-        countdown.setText("Session stopped");
+        boolean active = prefs.getBoolean("mining", false);
+        String message = prefs.getString(
+            "status", "Not mining"
+        );
+        String hashrate = prefs.getString(
+            "hashrate", "Waiting"
+        );
+        int shares = prefs.getInt("shares", 0);
+        int threads = prefs.getInt("threads", 3);
+        long remaining = prefs.getLong("remaining", 0L);
 
-        Process process = miningProcess;
+        start.setEnabled(!active);
+        stop.setEnabled(active);
+        wallet.setEnabled(!active);
+        threadSelector.setEnabled(!active);
 
         status.setText(
-            reason + "\n" +
-            "Last hashrate: " + speedValue + "\n" +
-            "Accepted shares: " + acceptedShares
+            (active ? "Mining (" + threads + " threads)"
+                    : message) +
+            "\nHashrate: " + hashrate +
+            "\nAccepted shares: " + shares
         );
 
-        start.setEnabled(false);
-        stop.setEnabled(false);
-
-        if (process != null) {
-
-            process.destroy();
-
-            new Thread(() -> {
-
-                try {
-
-                    Thread.sleep(3000);
-
-                    if (process.isAlive()) {
-                        process.destroyForcibly();
-                    }
-
-                } catch (InterruptedException ignored) {
-
-                    Thread.currentThread().interrupt();
-                }
-
-            }, "omg-miner-stop").start();
+        if (active) {
+            long seconds = (remaining + 999L) / 1000L;
+            countdown.setText(String.format(
+                java.util.Locale.US,
+                "Time remaining: %02d:%02d:%02d",
+                seconds / 3600,
+                (seconds / 60) % 60,
+                seconds % 60
+            ));
+        } else {
+            countdown.setText("Session duration: 02:00:00");
         }
     }
 
-    private void setIdle() {
+    private final Runnable stateTicker = new Runnable() {
+        @Override
+        public void run() {
+            refreshMiningState();
+            ui.postDelayed(this, 1000);
+        }
+    };
 
-        start.setEnabled(true);
-        stop.setEnabled(false);
-        wallet.setEnabled(true);
-        threadSelector.setEnabled(true);
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        String savedWallet =
+            getSharedPreferences("omg_user", MODE_PRIVATE)
+                .getString("wallet", "");
+
+        if (wallet.getText().length() == 0 &&
+            !savedWallet.isEmpty()) {
+            wallet.setText(savedWallet);
+        }
+
+        ui.removeCallbacks(stateTicker);
+        refreshMiningState();
+        ui.postDelayed(stateTicker, 1000);
+    }
+
+    @Override
+    protected void onPause() {
+        ui.removeCallbacks(stateTicker);
+        super.onPause();
     }
 
     @Override
     protected void onDestroy() {
-
-        closing = true;
-
-        stopMining(
-            "Mining stopped: app screen closed"
-        );
-
+        ui.removeCallbacks(stateTicker);
+        // The foreground service owns the mining process.
+        // Closing this screen must not stop mining.
         super.onDestroy();
     }
 }

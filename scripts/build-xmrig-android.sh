@@ -66,5 +66,6 @@ test -f "$MINER" || {
     exit 1
 }
 
+mkdir -p "$(dirname "$DEST")"
 cp "$MINER" "$DEST"
 echo "OMG XMRig executable staged for APK packaging"

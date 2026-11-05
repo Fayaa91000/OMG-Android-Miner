@@ -17,4 +17,22 @@ add_library(omgminer SHARED native_bridge.cpp)
 
 find_library(android_log log)
 
-target_link_libraries(omgminer PRIVATE uv_a ${android_log})
+# Import OpenSSL libraries built by GitHub Actions.
+set(OMG_OPENSSL_ROOT "$ENV{RUNNER_TEMP}/omg-openssl-arm64")
+
+if(EXISTS "${OMG_OPENSSL_ROOT}/lib/libssl.a"
+   AND EXISTS "${OMG_OPENSSL_ROOT}/lib/libcrypto.a")
+
+    add_library(omg_ssl STATIC IMPORTED)
+    set_target_properties(omg_ssl PROPERTIES
+        IMPORTED_LOCATION "${OMG_OPENSSL_ROOT}/lib/libssl.a")
+
+    add_library(omg_crypto STATIC IMPORTED)
+    set_target_properties(omg_crypto PROPERTIES
+        IMPORTED_LOCATION "${OMG_OPENSSL_ROOT}/lib/libcrypto.a")
+
+    target_link_libraries(omgminer PRIVATE
+        uv_a omg_ssl omg_crypto ${android_log})
+else()
+    message(FATAL_ERROR "OMG Android ARM64 OpenSSL libraries not found")
+endif()

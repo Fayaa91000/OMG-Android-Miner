@@ -4,6 +4,7 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.ServiceInfo;
 import android.os.*;
+import java.lang.Process;
 import java.io.*;
 import java.util.*;
 import java.util.regex.*;
